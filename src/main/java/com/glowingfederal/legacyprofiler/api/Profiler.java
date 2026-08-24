@@ -16,7 +16,8 @@ import java.io.IOException;
  * <p>Register stages before starting a session and cache their immutable {@link Stage} handles.
  * Recording methods are safe for concurrent producer threads. When no session is recording,
  * timing and counter calls return without recording data; inactive timing calls allocate no
- * objects. Session lifecycle should be controlled by one host thread.</p>
+ * objects. The installed Legacy Profiler mod owns global session lifecycle; consumer mods should
+ * only register stages and emit observations.</p>
  */
 public final class Profiler {
     /** Library implementation version represented by this source release. */
@@ -27,6 +28,17 @@ public final class Profiler {
     static { Extensions.load(); }
 
     private Profiler() { }
+
+    /**
+     * Deterministically initializes the process-wide service and its extension registry.
+     * The Forge container calls this during pre-initialization; consumers normally need not call it.
+     */
+    public static void initialize() { /* class initialization performs the one-time work */ }
+
+    /** Returns whether the shared process-wide profiler currently has a session. */
+    public static boolean isSessionActive() {
+        return com.glowingfederal.legacyprofiler.core.Profiler.getActiveSession() != null;
+    }
 
     /** Starts a session attributed to {@code Unknown}. Prefer the attributed overload. */
     public static ProfileSession beginSession() {

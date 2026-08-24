@@ -1,130 +1,108 @@
 # Legacy Profiler
 
-Legacy Profiler is a Java 8 profiling framework for legacy Minecraft integrations, including
-Minecraft Forge 1.7.10 mods. It gives host mods and consuming mods a shared vocabulary of
-structured stages, counters, sessions, and reports instead of requiring every mod to implement
-its own instrumentation. It can measure Minecraft-facing work supplied by a host adapter and work
-performed by other mods that register stages through the public API.
+Legacy Profiler is a standalone Forge 1.7.10 profiling mod **and** a public profiling API for
+other mods. One installed copy owns the shared process-wide profiler runtime; consumer mods own
+their stage catalogues and only register and record work through the API.
 
 Legacy Profiler is instrumentation: its reports describe observed work and profiler overhead;
-they do not promise a performance improvement by themselves.
-
-> **Current packaging:** version 1.0.0 is a domain-neutral Java library, not a directly loadable
-> Forge mod. This repository does not currently contain an `@Mod` entry point, Forge command,
-> configuration GUI/file, or Minecraft lifecycle adapter. A host mod must embed or depend on the
-> library and own session lifecycle. Server and modpack users should obtain the host mod's complete
-> distribution rather than placing `legacy-profiler-1.0.0.jar` in `mods/` by itself.
+they do not themselves promise a performance improvement.
 
 ## Features
 
-- Deterministically registered `TIMING`, `COUNTER`, and host-reserved `INTERNAL` stages, with
-  optional parent identifiers for organizing a hierarchy.
-- Nested, per-thread timing stacks with inclusive and exclusive duration aggregates.
-- Bounded reservoir statistics, percentile estimates, histograms, longest-call tracking, and
-  profiler self-statistics.
-- Counter stages for occurrences, separate from duration stages.
-- Aggregate recording by default and opt-in, bounded sampled traces controlled by the host.
-- A bounded timeline of host ticks, memory observations, progress counts, and named events.
-- `summary.json`, `timeline.csv`, and a concise human-readable `profile.log` for every completed
-  session. See [the JSON contract](docs/json-schema.md).
-- Stage and session consumer attribution in exports.
-- Service-loaded stage, report-writer, and initialization extension points.
+- Process-wide `TIMING` and `COUNTER` stage registration with consumer/source attribution.
+- Concurrent per-thread nested timing and aggregate statistics.
+- Bounded sampled traces and a bounded server timeline.
+- JSON, CSV, and concise text output for every completed session.
+- A Forge lifecycle owner and `/legacyprofiler` operator command.
+- Service-loaded stage and report-writer extensions.
 
-Aggregate stage statistics summarize the entire session. Sampled traces instead retain individual
-stage entries only inside samples explicitly opened by a host adapter; enabling `sampled` mode does
-not create a sampler thread or discover Minecraft hooks automatically.
+## Requirements
 
-## Requirements and compatibility
+- Minecraft 1.7.10
+- Forge 10.13.4.1614
+- Java 8
 
-| Item | Implemented requirement |
-| --- | --- |
-| Java | Java 8 source and bytecode target |
-| Gradle | Gradle 4.4.1 wrapper |
-| Minecraft | Intended integration target: Minecraft 1.7.10; the library itself has no Minecraft dependency |
-| Forge | Intended integration target: Forge 10.13.4.1614; the library itself has no Forge dependency |
-| Other libraries | None |
+## For server and modpack users
 
-No broader Minecraft, Forge, or Java compatibility is established by the current build.
+1. Put `LegacyProfiler-1.0.0.jar` in the instance's `mods/` directory.
+2. Put any consumer mods that require it in the same `mods/` directory.
+3. As an operator, run `/legacyprofiler start`, reproduce the workload, then run
+   `/legacyprofiler stop`. `/legacyprofiler status` reports whether a session is active.
 
-## Installation
+Legacy Profiler writes each completed session beneath `profiles/legacy-profiler/` in a directory
+named `profile-YYYY-MM-dd_HH-mm-ss`. Each directory contains:
 
-### Server and modpack users
+- `summary.json` — metadata, attributed stage/counter aggregates, warnings, overhead, and traces;
+- `timeline.csv` — session attribution, bounded timeline samples, and events;
+- `profile.log` — a short human-readable aggregate summary.
 
-Install a mod that integrates Legacy Profiler and follow that mod's instructions. The standalone
-JAR has no Forge entry point and will not add commands when copied to `mods/`. There are no required
-third-party runtime libraries beyond Java 8, but the host mod is responsible for packaging and
-calling Legacy Profiler.
+An active session is finalized during server shutdown. Export errors are logged, and stopped state
+is detached even if a writer fails so it cannot leak into a later integrated-server run.
 
-### Mod developers
+## For mod developers
 
-Compile against the normal JAR, and ensure the same classes are available at runtime—either by
-shipping Legacy Profiler as a declared required library/mod dependency or, where licensing permits,
-embedding it without duplicate copies. There is no public Maven repository in this repository.
-See [Developer API integration](docs/API.md) for local-JAR setup and working code.
+Publish this checkout to Maven Local with:
 
-## Basic usage
+```text
+./gradlew publishToMavenLocal
+```
 
-There is currently no `/legacyprofiler` command or built-in configuration. The real lifecycle is a
-Java API lifecycle owned by an integrating mod:
+Then consume the same artifact used at runtime:
 
-1. Register all stages during deterministic mod initialization.
-2. Optionally call `Profiler.configureSampling("aggregate", 100)` (aggregate is already the default).
-3. Start a session with consumer identity using `Profiler.beginSession(info)`.
-4. Enter and exit timing stages around the workload and record counters/events as needed.
-5. Call `Profiler.endSession()`; the returned directory contains the reports.
+```groovy
+repositories {
+    mavenLocal()
+}
 
-For example, a host can profile a generation run as follows:
-
-```java
-ProfileSession session = Profiler.beginSession(ProfileSessionInfo.builder()
-    .source("examplemod")
-    .displayName("Example Mod")
-    .purpose("Investigate world-generation time")
-    .build());
-try {
-    runGenerationWork(); // consuming code instruments its registered stages
-} finally {
-    File reportDirectory = Profiler.endSession();
+dependencies {
+    compile "com.glowingfederal:legacy-profiler:1.0.0"
 }
 ```
 
-The default output root is `logs/legacyprofiler/`. A completed session is written below it as
-`profile-YYYY-MM-dd_HH-mm-ss/`. Ending a session may throw `IOException`; hosts should report that
-failure to their users. The complete registration and timing example is in
+A directly linked Forge mod must also declare load order and presence:
+
+```java
+@Mod(modid = "examplemod", dependencies = "required-after:legacyprofiler")
+```
+
+Register consumer-owned stages from the consumer's normal FML initialization handler, after
+Legacy Profiler pre-initialization and before any profile starts. Do **not** shade or embed Legacy
+Profiler: end users install its JAR separately, Forge supplies load ordering, and all consumers
+therefore reach the same static service. Record work through
+`com.glowingfederal.legacyprofiler.api.Profiler`; consumers do not create or stop global sessions.
+See [the developer API guide](docs/API.md) and the registration example in
 [`examples/ExampleModIntegration.java`](examples/ExampleModIntegration.java).
 
-## Output
+The supported compatibility facade is `com.glowingfederal.legacyprofiler.api`. The immutable stage
+model and report-writer SPI currently exposed from `com.glowingfederal.legacyprofiler.core` and
+`com.glowingfederal.legacyprofiler.extension` remain usable where documented, but other core and
+Forge implementation classes are internal and are not compatibility-stable.
 
-- **`summary.json`** — machine-readable session metadata, stage/counter aggregates, validation
-  warnings, profiler overhead statistics, and sampled traces.
-- **`timeline.csv`** — spreadsheet-friendly, bounded timeline samples and events. Its first row
-  records session attribution; subsequent rows are classified as `sample` or `event`.
-- **`profile.log`** — short, human-readable stage totals suitable for quick inspection.
+Stage identifiers are process-global in API 1.0. Consumers must prefix them with a stable mod ID.
+Duplicate registration is rejected with the conflicting identifier rather than silently
+overwriting another consumer. See [the API guide](docs/API.md) for this existing multi-consumer
+constraint and full threading rules.
 
-The JSON stage `source` records the consumer that registered each stage. The root JSON `profile`
-object and CSV metadata row identify the consumer that started the session, so consuming mods retain
-their attribution in exported profiles when they supply it during registration/session creation.
+## Building and distribution
 
-## Building
-
-Use a Java 8 JDK:
+The legacy ForgeGradle build produces one directly installable artifact:
 
 ```text
 ./gradlew clean build
+build/libs/LegacyProfiler-1.0.0.jar
 ```
 
-The distributable and compile-time API are the same artifact:
-`build/libs/legacy-profiler-1.0.0.jar`. No sources/Javadoc artifacts or publication repository are
-currently configured. The wrapper may need to download Gradle 4.4.1 on its first run.
+That JAR contains the Forge container, API, implementation, and `mcmod.info`; no separate core JAR
+is needed. The Maven coordinate is `com.glowingfederal:legacy-profiler:1.0.0`.
 
-## API, issues, and licensing
+## API, schema, issues, and licensing
 
 - [Developer API guide](docs/API.md)
 - [JSON schema notes](docs/json-schema.md)
 - [Contributing and issue reports](CONTRIBUTING.md)
 - [Change log](changelog.md)
 
-The repository is **source available**, not offered as OSI open source. The project-specific license
-text has not yet been supplied; [`LICENSE`](LICENSE) is an explicit placeholder. Viewing this public
-source does not by itself grant permissions beyond applicable law. Obtain the final license before
-redistributing, embedding, or releasing the library/API.
+The repository is **source available**, not offered as OSI open source. [`LICENSE`](LICENSE) retains
+the project's rights-reserved placeholder terms. Public API consumption is an intended use, but
+viewing the source does not grant redistribution, embedding, or other rights beyond applicable law;
+obtain the final license before distribution.
