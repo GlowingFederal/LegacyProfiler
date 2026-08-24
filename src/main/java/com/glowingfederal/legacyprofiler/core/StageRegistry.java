@@ -1,6 +1,11 @@
 package com.glowingfederal.legacyprofiler.core;
 import java.util.*;
-/** Generic copy-on-write registry with no built-in domain stages. */
+/**
+ * Process-wide copy-on-write registry with no built-in domain stages.
+ * Reads are thread-safe and registration is synchronized. Registration is permanent for the
+ * process, rejects duplicate names, and should finish before any session begins because each
+ * session snapshots the current stage set. Returned stage handles are immutable and cacheable.
+ */
 public final class StageRegistry {
  private static volatile Map<String,StageMetadata> metadata=Collections.emptyMap();
  private static volatile Map<String,Stage> stages=Collections.emptyMap();
