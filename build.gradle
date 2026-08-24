@@ -32,11 +32,9 @@ processResources {
 
 jar {
     manifest {
-        attributes(
-                'Implementation-Title': 'Legacy Profiler',
+        attributes 'Implementation-Title': 'Legacy Profiler',
                 'Implementation-Version': version,
                 'Automatic-Module-Name': 'com.glowingfederal.legacyprofiler'
-        )
     }
 }
 
@@ -51,3 +49,6 @@ publishing {
         }
     }
 }
+
+build.dependsOn reobf
+publishToMavenLocal.dependsOn reobf
