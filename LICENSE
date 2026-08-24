@@ -1,7 +1,75 @@
-LEGACY PROFILER LICENSE PLACEHOLDER
+# Legacy Profiler Source Available License
 
-TODO: The copyright holder must supply the final source-available license text before a public
-release. This placeholder is not a license and grants no permissions.
+Copyright © 2026 GlowingFederal. All rights reserved.
 
-Legacy Profiler is intended to remain rights-retained and source available. Do not infer permission
-to use, copy, modify, redistribute, sublicense, or sell the software from source visibility alone.
+This license applies to the source code and associated files of **Legacy Profiler** (the "Software").
+
+## 1. Permission to View and Modify
+
+You may:
+
+* View and inspect the source code.
+* Download the source code for personal, educational, debugging, or development purposes.
+* Modify the Software for your own private use.
+* Use the source code to develop mods or other software that integrates with Legacy Profiler through its public API.
+* Submit modifications, patches, and pull requests to the official Legacy Profiler project.
+
+## 2. Modpack and Server Use
+
+You may redistribute **official, unmodified releases** of Legacy Profiler as part of a Minecraft modpack or server distribution, provided that:
+
+* Legacy Profiler is not sold separately.
+* Its authorship and license are not misrepresented.
+* The distributed file is an official release or otherwise explicitly authorized by the copyright holder.
+
+Normal monetization of a Minecraft server or modpack does not by itself violate this license.
+
+## 3. Restrictions
+
+You may not, without explicit written permission from the copyright holder:
+
+* Redistribute modified builds of Legacy Profiler.
+* Publish forks, mirrors, reuploads, or derivative distributions of the Software.
+* Publish the Software or substantial portions of its source code as part of another project.
+* Rebrand or represent Legacy Profiler as your own work.
+* Sell, sublicense, or commercially license Legacy Profiler itself.
+* Use substantial portions of Legacy Profiler's implementation to create or distribute a competing profiler or substantially equivalent product.
+* Remove or alter copyright, attribution, or license notices.
+
+Small excerpts of source code may be quoted when reasonably necessary for documentation, discussion, bug reports, reviews, or interoperability.
+
+## 4. API Usage
+
+This license does **not** restrict software that merely uses Legacy Profiler through its documented public API.
+
+Mods may depend on, call, and integrate with the Legacy Profiler API, including in commercial or monetized projects, without requiring separate permission.
+
+Consumer mods should depend on Legacy Profiler as a separate mod and must not embed, shade, or redistribute its implementation except where otherwise permitted by this license.
+
+## 5. Contributions
+
+Unless otherwise agreed in writing, contributions submitted to the official Legacy Profiler project grant the copyright holder a perpetual, worldwide, irrevocable, royalty-free license to use, modify, reproduce, distribute, sublicense, and relicense the contribution as part of Legacy Profiler.
+
+Contributors retain copyright to their own contributions.
+
+## 6. No Trademark Rights
+
+This license does not grant permission to use the names **Legacy Profiler**, **GlowingFederal**, or associated branding in a way that implies endorsement, affiliation, or authorship.
+
+## 7. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+## 8. Termination
+
+Your rights under this license terminate automatically if you violate its terms.
+
+Upon termination, you must cease unauthorized distribution or use of the Software. Rights may be restored only with permission from the copyright holder or where the violation has been fully corrected and the copyright holder elects not to enforce termination.
+
+## 9. Additional Permission
+
+Uses not expressly permitted by this license require written permission from the copyright holder.
+
+For licensing exceptions, redistribution permission, or commercial arrangements, contact the Legacy Profiler project owner.
