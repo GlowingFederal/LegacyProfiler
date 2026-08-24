@@ -1,0 +1,10 @@
+package com.glowingfederal.legacyprofiler.core;
+import java.io.*; import java.text.*; import java.util.*;
+/** Executes modular writers registered through the public facade. */
+public final class ProfileWriter {
+ private static volatile List<ReportWriter> writers=defaults();
+ private static List<ReportWriter> defaults(){List<ReportWriter> x=new ArrayList<ReportWriter>();x.add(new JsonReportWriter());x.add(new CsvTimelineWriter());x.add(new HumanReportWriter());return Collections.unmodifiableList(x);}
+ public static synchronized void register(ReportWriter writer){List<ReportWriter>x=new ArrayList<ReportWriter>(writers);x.add(writer);writers=Collections.unmodifiableList(x);}
+ public void write(ProfileSession session)throws IOException{File d=session.getOutputDirectory();if(!d.isDirectory()&&!d.mkdirs())throw new IOException("Cannot create "+d);long n=System.nanoTime();for(ReportWriter w:writers)w.write(new File(d,w.fileName(session)),session);session.getProfilerStatistics().report(System.nanoTime()-n);}
+ static void writeHuman(File file,ProfileSession session)throws IOException{BufferedWriter o=new BufferedWriter(new FileWriter(file));try{o.write("Legacy Profiler Summary\n=======================\n");o.write("Profiler version: 1.0.0\n");o.write("Profile source: "+session.getSessionInfo().getSource()+"\n");if(session.getSessionInfo().getDisplayName()!=null)o.write("Profile source name: "+session.getSessionInfo().getDisplayName()+"\n");if(session.getSessionInfo().getPurpose()!=null)o.write("Purpose: "+session.getSessionInfo().getPurpose()+"\n");o.write("Recording mode: "+session.getMode()+"\n\nStages\n------\n");for(Map.Entry<Stage,StageStatistics> e:session.getStatistics().entrySet()){StageStatistics.Snapshot s=e.getValue().snapshot();o.write(e.getKey().name()+": calls="+s.calls+", inclusive_nanos="+s.inclusiveNanos+", exclusive_nanos="+s.exclusiveNanos+"\n");}}finally{o.close();}}
+}
