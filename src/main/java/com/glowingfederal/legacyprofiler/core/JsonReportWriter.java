@@ -21,6 +21,7 @@ final class JsonReportWriter implements ReportWriter {
             out.write("\n  \"chunks_generated\": " + session.getChunksGenerated() + ",");
             out.write("\n  \"recording_mode\": \"" + esc(session.getMode()) + "\",");
             out.write("\n  \"profile\": {\"source\":\"" + esc(session.getSessionInfo().getSource()) + "\"");
+            out.write(",\"scope\":\"" + session.getScope().name() + "\",\"consumer_id\":" + nullable(session.getConsumerId()));
             if (session.getSessionInfo().getDisplayName() != null) out.write(",\"display_name\":\"" + esc(session.getSessionInfo().getDisplayName()) + "\"");
             if (session.getSessionInfo().getPurpose() != null) out.write(",\"purpose\":\"" + esc(session.getSessionInfo().getPurpose()) + "\"");
             out.write("},");
@@ -40,7 +41,7 @@ final class JsonReportWriter implements ReportWriter {
                 StageMetadata md = StageRegistry.get(entry.getKey().name());
                 out.write("\n    \"" + entry.getKey().name() + "\": {");
                 out.write("\"name\":\"" + esc(md.name) + "\",\"parent\":" + nullable(md.parent)
-                    + ",\"kind\":\"" + md.kind.name() + "\",\"category\":\"" + esc(md.category) + "\",\"description\":\"" + esc(md.description)
+                    + ",\"kind\":\"" + md.kind.name() + "\",\"consumer_id\":\"" + esc(entry.getKey().consumerId()) + "\",\"category\":\"" + esc(md.category) + "\",\"description\":\"" + esc(md.description)
                     + "\",\"enabled\":" + md.enabled + ",\"source\":\"" + esc(md.source) + "\",\"display_order\":" + md.displayOrder
                     + ",\"calls\":" + s.calls + ",\"inclusive_nanos\":" + s.inclusiveNanos
                     + ",\"exclusive_nanos\":" + s.exclusiveNanos + ",\"average_nanos\":" + s.averageNanos

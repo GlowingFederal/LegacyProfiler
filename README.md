@@ -9,7 +9,7 @@ they do not themselves promise a performance improvement.
 
 ## Features
 
-- Process-wide `TIMING` and `COUNTER` stage registration with consumer/source attribution.
+- Explicitly consumer-owned `TIMING` and `COUNTER` stages with global or consumer-scoped sessions.
 - Concurrent per-thread nested timing and aggregate statistics.
 - Bounded sampled traces and a bounded server timeline.
 - JSON, CSV, and concise text output for every completed session.
@@ -69,7 +69,7 @@ Register consumer-owned stages from the consumer's normal FML initialization han
 Legacy Profiler pre-initialization and before any profile starts. Do **not** shade or embed Legacy
 Profiler: end users install its JAR separately, Forge supplies load ordering, and all consumers
 therefore reach the same static service. Record work through
-`com.glowingfederal.legacyprofiler.api.Profiler`; consumers do not create or stop global sessions.
+`com.glowingfederal.legacyprofiler.api.Profiler`; consumers may build their own commands around consumer-scoped sessions while the built-in command remains global.
 See [the developer API guide](docs/API.md) and the registration example in
 [`examples/ExampleModIntegration.java`](examples/ExampleModIntegration.java).
 

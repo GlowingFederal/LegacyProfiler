@@ -16,8 +16,7 @@ import java.io.IOException;
  * <p>Register stages before starting a session and cache their immutable {@link Stage} handles.
  * Recording methods are safe for concurrent producer threads. When no session is recording,
  * timing and counter calls return without recording data; inactive timing calls allocate no
- * objects. The installed Legacy Profiler mod owns global session lifecycle; consumer mods should
- * only register stages and emit observations.</p>
+ * objects. One process-wide global or consumer-scoped session may be active at a time.</p>
  */
 public final class Profiler {
     /** Library implementation version represented by this source release. */
@@ -40,17 +39,27 @@ public final class Profiler {
         return com.glowingfederal.legacyprofiler.core.Profiler.getActiveSession() != null;
     }
 
-    /** Starts a session attributed to {@code Unknown}. Prefer the attributed overload. */
+    /** Starts a global session attributed to {@code Unknown}. Prefer the attributed overload. */
     public static ProfileSession beginSession() {
         return com.glowingfederal.legacyprofiler.core.Profiler.beginSession();
     }
 
     /**
-     * Starts a session. A currently active session is replaced without writing its report.
+     * Starts a global session. Fails if another process-wide session is active.
      * @param info non-null consumer attribution
      */
     public static ProfileSession beginSession(ProfileSessionInfo info) {
-        return com.glowingfederal.legacyprofiler.core.Profiler.beginSession(info);
+        return beginGlobalSession(info);
+    }
+
+    /** Starts a global session that records every registered consumer. */
+    public static ProfileSession beginGlobalSession(ProfileSessionInfo info) {
+        return com.glowingfederal.legacyprofiler.core.Profiler.beginGlobalSession(info);
+    }
+
+    /** Starts a session that records only stages explicitly owned by {@code consumerId}. */
+    public static ProfileSession beginConsumerSession(String consumerId, ProfileSessionInfo info) {
+        return com.glowingfederal.legacyprofiler.core.Profiler.beginConsumerSession(consumerId, info);
     }
 
     /**
@@ -93,6 +102,12 @@ public final class Profiler {
     public static StageMetadata registerStage(StageMetadata metadata) {
         if (metadata == null) throw new IllegalArgumentException("metadata must not be null");
         return com.glowingfederal.legacyprofiler.core.Profiler.registerStage(metadata);
+    }
+
+    /** Registers a stage with an immutable, validated consumer owner. */
+    public static StageMetadata registerStage(String consumerId, StageMetadata metadata) {
+        if (metadata == null) throw new IllegalArgumentException("metadata must not be null");
+        return com.glowingfederal.legacyprofiler.core.Profiler.registerStage(consumerId, metadata);
     }
 
     /**

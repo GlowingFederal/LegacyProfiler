@@ -8,6 +8,7 @@ public final class Profiler {
     private static final ThreadLocal<TimingStack> STACK = new ThreadLocal<TimingStack>() {
         @Override protected TimingStack initialValue() { return new TimingStack(); }
     };
+    private static final ThreadLocal<ProfileSession> STACK_SESSION = new ThreadLocal<ProfileSession>();
     private static final ThreadLocal<ProfileSession.SampledTrace> TRACE = new ThreadLocal<ProfileSession.SampledTrace>();
 
     private static volatile String recordingMode = "aggregate";
@@ -15,6 +16,8 @@ public final class Profiler {
     private Profiler() { }
     public static ProfileSession beginSession() { return ProfilerManager.start(); }
     public static ProfileSession beginSession(ProfileSessionInfo info) { return ProfilerManager.start(info); }
+    public static ProfileSession beginGlobalSession(ProfileSessionInfo info) { return ProfilerManager.startGlobal(info); }
+    public static ProfileSession beginConsumerSession(String consumerId, ProfileSessionInfo info) { return ProfilerManager.startConsumer(consumerId, info); }
     public static java.io.File endSession() throws java.io.IOException { return ProfilerManager.stop(); }
     public static void configureSampling(String mode, int interval) { recordingMode=mode; sampleInterval=Math.max(1,interval); }
     static String getRecordingMode(){return recordingMode;} static int getSampleInterval(){return sampleInterval;}
@@ -26,14 +29,18 @@ public final class Profiler {
     public static void enter(Stage stage) {
         long overheadStarted = System.nanoTime();
         ProfileSession session = active;
-        if (session == null || !session.isRecording()) return;
+        if (session == null || !session.isRecording() || !session.accepts(stage)) return;
+        if (STACK_SESSION.get() != session) { STACK.get().clear(); STACK_SESSION.set(session); }
         STACK.get().enter(stage, System.nanoTime()); session.timingEntered();
         session.getProfilerStatistics().enter(System.nanoTime() - overheadStarted);
     }
     public static void exit(Stage stage) {
         long overheadStarted = System.nanoTime();
         ProfileSession session = active;
-        if (session == null || !session.isRecording()) return;
+        if (session == null || !session.isRecording() || !session.accepts(stage)) return;
+        ProfileSession stackSession = STACK_SESSION.get();
+        if (stackSession != null && stackSession != session) { STACK.get().clear(); STACK_SESSION.set(session); return; }
+        if (stackSession == null) STACK_SESSION.set(session);
         TimingStack.Completed completed = STACK.get().exit(stage, System.nanoTime());
         if (completed == null) session.timingError(); else session.timingExited();
         if (completed != null && session == active) {
@@ -45,11 +52,11 @@ public final class Profiler {
     }
     public static void increment(Stage stage) {
         ProfileSession session = active;
-        if (session != null && session.isRecording()) session.increment(stage);
+        if (session != null && session.isRecording() && session.accepts(stage)) session.increment(stage);
     }
     public static void recordValue(Stage stage, long nanos) {
         ProfileSession session = active;
-        if (session != null && session.isRecording()) session.recordValue(stage, nanos);
+        if (session != null && session.isRecording() && session.accepts(stage)) session.recordValue(stage, nanos);
     }
     public static void recordChunkGenerated() {
         ProfileSession session = active;
@@ -58,6 +65,12 @@ public final class Profiler {
     public static StageMetadata registerStage(StageMetadata metadata) {
         ProfileSession session = active; long started = System.nanoTime();
         StageMetadata result = StageRegistry.register(metadata);
+        if (session != null) session.getProfilerStatistics().lookup(System.nanoTime() - started);
+        return result;
+    }
+    public static StageMetadata registerStage(String consumerId, StageMetadata metadata) {
+        ProfileSession session = active; long started = System.nanoTime();
+        StageMetadata result = StageRegistry.register(consumerId, metadata);
         if (session != null) session.getProfilerStatistics().lookup(System.nanoTime() - started);
         return result;
     }
@@ -80,5 +93,5 @@ public final class Profiler {
         ProfileSession session = active;
         if (session != null && session.isRecording()) session.tick(System.nanoTime());
     }
-    static void clearCurrentThread() { STACK.get().clear(); }
+    static void clearCurrentThread() { STACK.get().clear(); STACK_SESSION.remove(); TRACE.remove(); }
 }
