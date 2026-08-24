@@ -1,6 +1,10 @@
 package com.glowingfederal.legacyprofiler.api;
 
-/** Immutable identity of the consumer that requested a profiling session. */
+/**
+ * Immutable identity of the consumer that requested a profiling session.
+ * Instances are thread-safe and may be cached. {@code source} is required and is trimmed;
+ * display name and purpose are optional and normalize null or blank values to {@code null}.
+ */
 public final class ProfileSessionInfo {
     private static final ProfileSessionInfo UNKNOWN = builder().source("Unknown").build();
 
@@ -16,6 +20,7 @@ public final class ProfileSessionInfo {
 
     /** Deterministic attribution used by compatibility entry points that provide no consumer. */
     public static ProfileSessionInfo unknown() { return UNKNOWN; }
+    /** Returns a new, non-thread-safe builder intended for single-use construction. */
     public static Builder builder() { return new Builder(); }
     public String getSource() { return source; }
     public String getDisplayName() { return displayName; }
