@@ -32,17 +32,22 @@ processResources {
 
 jar {
     manifest {
-        attributes 'Implementation-Title': 'Legacy Profiler',
-                   'Implementation-Version': version,
-                   'Automatic-Module-Name': 'com.glowingfederal.legacyprofiler'
+        attributes(
+                'Implementation-Title': 'Legacy Profiler',
+                'Implementation-Version': version,
+                'Automatic-Module-Name': 'com.glowingfederal.legacyprofiler'
+        )
     }
 }
 
 publishing {
     publications {
         legacyProfiler(MavenPublication) {
-            from components.java
+            groupId = project.group
             artifactId = 'legacy-profiler'
+            version = project.version
+
+            artifact jar
         }
     }
 }
