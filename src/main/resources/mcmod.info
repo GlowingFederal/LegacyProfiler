@@ -1,0 +1,15 @@
+[
+  {
+    "modid": "legacyprofiler",
+    "name": "Legacy Profiler",
+    "description": "Shared profiling runtime and public instrumentation API for Forge 1.7.10 mods.",
+    "version": "${version}",
+    "mcversion": "1.7.10",
+    "url": "https://github.com/GlowingFederal/LegacyProfiler",
+    "authorList": ["GlowingFederal"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]

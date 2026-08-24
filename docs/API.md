@@ -1,202 +1,127 @@
 # Legacy Profiler developer API
 
-This guide describes the code shipped in Legacy Profiler 1.0.0 (`API_VERSION` `1.0`). Using this
-public Java API from another mod is the supported integration mechanism. Legacy Profiler currently
-has no Forge `@Mod` container, command layer, configuration file, or automatic lifecycle hooks.
+Legacy Profiler 1.0.0 (API version `1.0`) is a directly loadable Forge 1.7.10 mod. Its Forge
+container deterministically initializes one process-wide service in pre-initialization, owns
+operator-driven sessions, registers its command at server start, and finalizes an active session at
+server stop. Consumer mods register stages and emit observations; they do not bootstrap a profiler
+implementation or own global lifecycle.
 
-## Packages and dependency setup
+## Dependency and load order
 
-The intended consumer facade is `com.glowingfederal.legacyprofiler.api`. Stage value types and the
-report-writer contract currently live in `com.glowingfederal.legacyprofiler.core`. Intentional
-service-provider extension points live in `com.glowingfederal.legacyprofiler.extension`.
-
-There is no configured Maven publication and no public repository/coordinates to paste into a
-build. Build Legacy Profiler with Java 8 using `./gradlew clean build`, then copy
-`build/libs/legacy-profiler-1.0.0.jar` to a consuming mod's local `libs/` directory:
+Publish the repository artifact with `./gradlew publishToMavenLocal`, then add:
 
 ```groovy
-dependencies {
-    compile files('libs/legacy-profiler-1.0.0.jar')
-}
+repositories { mavenLocal() }
+dependencies { compile "com.glowingfederal:legacy-profiler:1.0.0" }
 ```
 
-That is only **compile-time integration**. Direct references to these classes also require them at
-runtime. A host must arrange exactly one compatible copy, either as a required runtime library or
-embedded in its own distribution where the final Legacy Profiler license permits that. The current
-library is not independently recognized by Forge, so merely placing it in `mods/` does not establish
-a Forge dependency or start profiling.
-
-There is no optional-dependency shim. If a mod loads a class whose signatures or bytecode directly
-reference Legacy Profiler while the library is absent, normal JVM class loading may fail. An
-optional integration must isolate all direct references behind the consuming mod's own presence
-check and only load that integration class when the host has made Legacy Profiler available. If
-profiling is required, fail clearly during the host mod's initialization instead.
-
-## Registering stages
-
-Register stages once during deterministic mod initialization, before any session begins. Stage
-names are process-global, uppercase identifiers matching `[A-Z][A-Z0-9_]*`; prefix them with a
-stable mod identifier to prevent collisions. Registration is synchronized, rejects duplicates, and
-is not idempotent. Sessions snapshot registered stages, so registering after session start will
-produce a handle that the active session cannot record safely.
+The consumer JAR must not shade or embed Legacy Profiler. Install `LegacyProfiler-1.0.0.jar`
+separately and declare direct API linkage to Forge 1.7.10:
 
 ```java
-import com.glowingfederal.legacyprofiler.api.Profiler;
-import com.glowingfederal.legacyprofiler.core.Stage;
-import com.glowingfederal.legacyprofiler.core.StageKind;
-import com.glowingfederal.legacyprofiler.core.StageMetadata;
-
-public final class ExampleStages {
-    public static Stage GENERATION;
-    public static Stage BLOCKS_PLACED;
-
-    public static void register() {
-        Profiler.registerStage(new StageMetadata(
-            "EXAMPLEMOD_GENERATION", // globally unique stable identifier
-            null,                    // parent stage identifier, or null
-            StageKind.TIMING,
-            "World generation",
-            "ExampleMod generation work",
-            true,
-            "examplemod",           // owning consumer/mod ID
-            100));
-        GENERATION = Profiler.stage("EXAMPLEMOD_GENERATION");
-
-        Profiler.registerStage(new StageMetadata(
-            "EXAMPLEMOD_BLOCKS_PLACED", null, StageKind.COUNTER,
-            "World generation", "Blocks placed by ExampleMod", true, "examplemod", 110));
-        BLOCKS_PLACED = Profiler.stage("EXAMPLEMOD_BLOCKS_PLACED");
+@Mod(modid = "examplemod", dependencies = "required-after:legacyprofiler")
+public final class ExampleMod {
+    @Mod.EventHandler
+    public void init(FMLInitializationEvent event) {
+        ExampleStages.register();
     }
 }
 ```
 
-Use `TIMING` for durations and `COUNTER` for occurrences. `INTERNAL` is available but intended for
-host/profiler bookkeeping, not ordinary consuming-mod work. A child stage's `parent` is metadata
-for report organization; it must name a separately registered stage and does not automatically
-enter the parent. Keep identifiers and parent relationships stable across versions so exported
-profiles remain comparable. The `enabled` field is descriptive in 1.0.0; it is not a runtime switch.
+`required-after:legacyprofiler` makes Forge verify presence and order initialization. Direct bytecode
+linkage is not magically optional; optional support must be isolated by the consumer so referenced
+classes are not loaded when the mod is absent.
 
-`Stage` is immutable, compares by name, and is safe to cache for the life of the process. Metadata
-is also immutable. `Profiler.stage(name)` throws if registration has not occurred.
+## Public surface and shared access
 
-## Recording timings
+`com.glowingfederal.legacyprofiler.api.Profiler` is the stable static facade. Static publication is
+thread-safe and leads every consumer to the same runtime. The Forge container calls
+`Profiler.initialize()` in pre-initialization; consumers normally just use the facade during their
+own initialization. `Profiler.isSessionActive()` is available for observational integration.
 
-The v1 facade uses explicit `enter`/`exit`; it does not supply an `AutoCloseable` scope. Always use
-`try/finally`, on the same thread, with properly nested stages:
+The supported public packages are:
+
+- `com.glowingfederal.legacyprofiler.api` — stable consumer facade and session attribution value;
+- documented immutable stage types and `ReportWriter` in `.core` — currently required model/SPI;
+- `com.glowingfederal.legacyprofiler.extension` — documented service-provider contracts.
+
+Other `.core` classes and everything in `.forge` are implementation details and are not
+compatibility-stable.
+
+## Registering stages
+
+Register once from the consumer mod's FML initialization handler, before a session starts, and
+cache the returned lookup handle:
 
 ```java
-Profiler.enter(ExampleStages.GENERATION);
+Profiler.registerStage(new StageMetadata(
+    "EXAMPLEMOD_GENERATION", null, StageKind.TIMING,
+    "World generation", "ExampleMod generation work", true, "examplemod", 100));
+Stage generation = Profiler.stage("EXAMPLEMOD_GENERATION");
+```
+
+Use `TIMING` for durations and `COUNTER` for occurrences. `INTERNAL` is reserved for profiler/host
+bookkeeping. `source` must identify the owning consumer and is preserved in JSON reports. Parent
+names are organizational metadata and must name separately registered stages.
+
+API 1.0 stage IDs are process-global and `Stage` equality is name-based. Prefix every ID with a
+stable mod ID, as above. The synchronized copy-on-write registry rejects duplicate names with an
+`IllegalArgumentException`; it never silently overwrites an unrelated consumer. This global-name
+requirement is the remaining limitation for multiple independent consumers that want identical
+local stage names.
+
+## Recording
+
+```java
+Profiler.enter(generation);
 try {
     generateChunk();
 } finally {
-    Profiler.exit(ExampleStages.GENERATION);
+    Profiler.exit(generation);
 }
 ```
 
-Each producer thread has an independent timing stack. Nested stages calculate inclusive time and
-subtract completed child time to calculate exclusive time. A mismatched exit clears the calling
-thread's stack and adds a validation warning; it does not throw. When profiling is inactive or
-paused, `enter`, `exit`, and counter recording return without recording; inactive timing calls are
-implemented as a volatile read/branch with no timing-frame allocation. Do not mix an `enter` made
-during an active interval with an `exit` after pausing or ending a session.
+Enter and exit on the same thread and nest stages strictly. Each producer thread has an independent
+stack. Inactive calls return without recording. A mismatched exit clears that thread's stack and
+adds a validation warning. Increment a `COUNTER` stage with `Profiler.recordCounter(stage)` and add
+timeline events with `Profiler.recordEvent(description)`.
 
-## Counters
+Aggregate recording is the default. `Profiler.configureSampling("sampled", interval)` enables
+retention only when a host adapter supplies sample boundaries; the public facade does not create a
+sampler thread. `serverTick()` and `recordChunkGenerated()` are adapter hooks and ordinary consumers
+should not call them merely to force output.
 
-Increment a registered `COUNTER` stage once per occurrence:
+## Session ownership, commands, and output
 
-```java
-Profiler.recordCounter(ExampleStages.BLOCKS_PLACED);
-```
+The installed mod owns the session. Operators use:
 
-Counters report call counts and must not be entered/exited as duration stages. Conversely, do not
-use `recordCounter` on a timing stage. The hot-path facade does not dynamically validate the kind,
-so selecting the correct kind is the consumer's contract. Calls are ignored while inactive.
+- `/legacyprofiler start` — create one attributed shared session;
+- `/legacyprofiler stop` — finalize it and synchronously export reports;
+- `/legacyprofiler status` — show idle/running state.
 
-## Sessions and consumer attribution
+Reports go to `profiles/legacy-profiler/profile-YYYY-MM-dd_HH-mm-ss/` under the instance directory:
+`summary.json`, `timeline.csv`, and `profile.log`. Stage `source` remains in JSON while session
+source appears in JSON and CSV. Server shutdown calls the same finalization path; even when export
+throws, stopped global state is detached to prevent cross-server leakage in the JVM.
 
-Only the integrating host should own the process-wide session lifecycle. Supply a stable mod ID or
-integration ID as `source`; do not use a human display name as the machine identity:
+The legacy `beginSession` and `endSession` methods remain binary/source compatible for integrations,
+but consumer mods should not call them. Starting a second session historically replaces the first
+without export, which is why the command refuses a duplicate start and lifecycle ownership is
+centralized in the standalone mod.
 
-```java
-import com.glowingfederal.legacyprofiler.api.ProfileSessionInfo;
+## Extensions and threading
 
-Profiler.beginSession(ProfileSessionInfo.builder()
-    .source("examplemod")
-    .displayName("Example Mod")       // optional
-    .purpose("Profile terrain pass")  // optional
-    .build());
-try {
-    runMeasuredWork();
-} finally {
-    Profiler.endSession(); // writes reports synchronously and may throw IOException
-}
-```
+First facade initialization loads Java `ServiceLoader` providers once. `StageProvider` supplies
+deterministic metadata, `ReportProvider` supplies synchronous custom writers, and
+`ProfilerPlugin.initialize()` performs one-time integration initialization. Namespace stages and
+filenames and avoid slow discovery. `MetadataProvider` and `TimelineProvider` are not consumed in
+API 1.0 and must not be relied upon.
 
-`ProfileSessionInfo` is immutable and cacheable. A blank/null source is rejected; optional blank
-fields become null. The no-argument session overload uses `Unknown` and exists for compatibility,
-not as the preferred integration. Session source appears in the JSON `profile` object and CSV
-metadata row. Each stage's independent `StageMetadata.source` appears with that stage in JSON,
-making both the session initiator and registering consumer visible.
+Registry reads use immutable snapshots and registration is synchronized. Aggregate recording,
+counters, timeline events, and profiler statistics accept concurrent producers. Session start/stop
+is synchronized and report writers execute synchronously on the controlling server/command thread.
+Custom writers must synchronize access to their own external state.
 
-The default output root is `logs/legacyprofiler`, with timestamped session directories. The public
-facade does not currently expose output-root, pause/resume, or reset controls. Starting while a
-session is already active replaces the old session without exporting it; hosts must serialize and
-balance lifecycle calls. `endSession()` returns null when inactive and otherwise returns the report
-directory.
-
-## Aggregate recording and sampled traces
-
-`Profiler.configureSampling("aggregate", interval)` selects aggregate-only recording (the default).
-`"sampled"` allows host adapters to retain individual traces, but the public API facade does not
-currently expose sample-boundary methods. It also does not install a background sampler. Consuming
-mods should rely on aggregate timing unless they are integrating with a host adapter that explicitly
-supports sampled boundaries. `Profiler.serverTick()` and `recordChunkGenerated()` are host hooks,
-not lifecycle automation.
-
-## Extensions
-
-The first use of the API loads Java `ServiceLoader` providers once. An integration JAR may declare
-implementations in `META-INF/services/<fully-qualified-interface-name>`:
-
-- `ProfilerPlugin.initialize()` performs one-time integration initialization.
-- `StageProvider.stages()` supplies deterministic stage metadata.
-- `ReportProvider.writers()` supplies synchronous custom `ReportWriter` instances.
-
-Provider collections and their elements must be non-null. Providers should namespace stage names
-and output filenames with their mod ID, perform no slow work during discovery, and avoid depending
-on provider iteration order. Custom writers own their format, run while the session is ending, and
-may throw `IOException`, which is propagated to the host.
-
-`MetadataProvider` and `TimelineProvider` types exist in the source but are not consumed by the 1.0.0
-loader or built-in writers. The JSON `extensions` object is currently always empty. They are
-therefore **not usable public extension mechanisms yet**, and consumers must not advertise or rely
-on custom extension metadata. `ComparisonResult`/`ComparisonWriter` are similarly reserved and
-have no built-in execution path.
-
-## Thread safety and lifecycle rules
-
-- Stage registry reads are lock-free snapshots; registration is synchronized. Finish registration
-  before starting worker threads or a session.
-- Timing stacks and sampled-trace state are thread-local. Enter and exit the same stage on the same
-  thread and nest calls strictly.
-- Duration aggregates, counter increments, timeline events, and profiler statistics accept
-  concurrent producer threads. Cached `Stage` and `ProfileSessionInfo` objects are immutable.
-- Session start/stop operations are synchronized internally, but they replace global state and write
-  reports synchronously. Treat them as host/server-lifecycle operations on one controlling thread.
-- `serverTick()` should be called by the host's server tick thread. Ordinary consuming mods should
-  not call it merely to force output.
-- Custom report writers execute on the thread calling `endSession()` and must provide their own
-  synchronization if they access external mutable state.
-
-## API stability
-
-`Profiler.VERSION` is `1.0.0`; `Profiler.API_VERSION` is `1.0`. The facade is the compatibility
-boundary for the 1.x line. The project promises compatible additions and additive JSON fields in
-1.x; semantic breaks require a new major version. Core and extension surface that the facade does
-not expose should be treated more cautiously, especially the explicitly unused provider and
-comparison types. The JSON compatibility rules are recorded in [json-schema.md](json-schema.md).
-
-## Complete small example
-
-See [`../examples/ExampleModIntegration.java`](../examples/ExampleModIntegration.java). It is a
-copyable documentation example and is intentionally outside Gradle's compiled source set.
+See [`../examples/ExampleModIntegration.java`](../examples/ExampleModIntegration.java) for a small
+consumer-only registration and recording example. JSON compatibility is documented in
+[`json-schema.md`](json-schema.md).
