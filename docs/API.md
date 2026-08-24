@@ -54,14 +54,14 @@ Register once from the consumer mod's FML initialization handler, before a sessi
 cache the returned lookup handle:
 
 ```java
-Profiler.registerStage(new StageMetadata(
-    "EXAMPLEMOD_GENERATION", null, StageKind.TIMING,
+Profiler.registerStage("examplemod", new StageMetadata(
+    "examplemod.generation", null, StageKind.TIMING,
     "World generation", "ExampleMod generation work", true, "examplemod", 100));
-Stage generation = Profiler.stage("EXAMPLEMOD_GENERATION");
+Stage generation = Profiler.stage("examplemod.generation");
 ```
 
 Use `TIMING` for durations and `COUNTER` for occurrences. `INTERNAL` is reserved for profiler/host
-bookkeeping. `source` must identify the owning consumer and is preserved in JSON reports. Parent
+bookkeeping. `consumerId` is a validated lowercase identifier (`[a-z0-9][a-z0-9_-]*`) and is stored as immutable ownership on the returned stage handle. `source` remains descriptive provider metadata and is preserved in JSON reports. Ownership is never inferred from a stage-name prefix. Parent
 names are organizational metadata and must name separately registered stages.
 
 API 1.0 stage IDs are process-global and `Stage` equality is name-based. Prefix every ID with a
@@ -93,9 +93,9 @@ should not call them merely to force output.
 
 ## Session ownership, commands, and output
 
-The installed mod owns the session. Operators use:
+Exactly one process-wide session may be active. A second start throws `IllegalStateException` rather than replacing the active session. Legacy Profiler operators use:
 
-- `/legacyprofiler start` — create one attributed shared session;
+- `/legacyprofiler start` — create one attributed `GLOBAL` session that accepts all owners;
 - `/legacyprofiler stop` — finalize it and synchronously export reports;
 - `/legacyprofiler status` — show idle/running state.
 
@@ -104,10 +104,24 @@ Reports go to `profiles/legacy-profiler/profile-YYYY-MM-dd_HH-mm-ss/` under the 
 source appears in JSON and CSV. Server shutdown calls the same finalization path; even when export
 throws, stopped global state is detached to prevent cross-server leakage in the JVM.
 
-The legacy `beginSession` and `endSession` methods remain binary/source compatible for integrations,
-but consumer mods should not call them. Starting a second session historically replaces the first
-without export, which is why the command refuses a duplicate start and lifecycle ownership is
-centralized in the standalone mod.
+`beginGlobalSession(info)` explicitly starts a global session. The legacy `beginSession()` and
+`beginSession(info)` entry points remain binary/source compatible and retain global semantics.
+`beginConsumerSession(consumerId, info)` starts a session accepting only stages registered to that
+consumer. The `ProfileSessionInfo` source identifies who initiated the profile; session scope and
+consumer identify what is measured, and stage ownership identifies who supplied each observation.
+
+A consumer can wrap a scoped session with its own command or UI:
+
+```java
+Profiler.beginConsumerSession("examplemod", ProfileSessionInfo.builder()
+    .source("examplemod").displayName("Example Mod").purpose("Generation diagnosis").build());
+// Later, after checking Profiler.isSessionActive():
+Profiler.endSession();
+```
+
+All consumers share the same lifecycle, so integrations must handle `IllegalStateException` from a
+start race cleanly and must not stop a session they did not initiate. Namespaced stage identifiers
+remain recommended for global uniqueness, but do not establish ownership.
 
 ## Extensions and threading
 

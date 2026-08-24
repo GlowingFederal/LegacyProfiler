@@ -12,15 +12,15 @@ public final class ExampleModIntegration {
 
     /** Call once from ExampleMod's deterministic initialization path, before profiling starts. */
     public static void registerStages() {
-        Profiler.registerStage(new StageMetadata(
-            "EXAMPLEMOD_GENERATION", null, StageKind.TIMING,
+        Profiler.registerStage("examplemod", new StageMetadata(
+            "examplemod.generation", null, StageKind.TIMING,
             "World generation", "ExampleMod generation work", true, "examplemod", 100));
-        generation = Profiler.stage("EXAMPLEMOD_GENERATION");
+        generation = Profiler.stage("examplemod.generation");
 
-        Profiler.registerStage(new StageMetadata(
-            "EXAMPLEMOD_BLOCKS_PLACED", null, StageKind.COUNTER,
+        Profiler.registerStage("examplemod", new StageMetadata(
+            "examplemod.blocks_placed", null, StageKind.COUNTER,
             "World generation", "Blocks placed by ExampleMod", true, "examplemod", 110));
-        blocksPlaced = Profiler.stage("EXAMPLEMOD_BLOCKS_PLACED");
+        blocksPlaced = Profiler.stage("examplemod.blocks_placed");
     }
 
     /** Consumer code records only; the installed Legacy Profiler mod owns the shared session. */

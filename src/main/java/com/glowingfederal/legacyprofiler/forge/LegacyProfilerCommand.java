@@ -28,7 +28,7 @@ public final class LegacyProfilerCommand extends CommandBase {
                 reply(sender, "A profiling session is already active.");
                 return;
             }
-            Profiler.beginSession(ProfileSessionInfo.builder().source("legacyprofiler")
+            Profiler.beginGlobalSession(ProfileSessionInfo.builder().source("legacyprofiler")
                 .displayName("Legacy Profiler command").purpose("Operator-requested profile").build());
             reply(sender, "Profiling started.");
         } else if ("stop".equalsIgnoreCase(arguments[0])) {

@@ -20,3 +20,13 @@ commit when available.
   required `required-after:legacyprofiler` consumer dependency and non-shaded deployment model.
 - Reworked the user and API guides around consumer-only stage registration and the single runtime,
   while documenting the existing process-global stage-name limitation.
+
+## 1.0.0 consumer-scoped profiling
+
+- (0792ec9 Add consumer-scoped profiling sessions) Added explicit immutable stage ownership and
+  distinct global and consumer-scoped session APIs while retaining one fail-fast process-wide
+  lifecycle and the legacy global entry points.
+- Applied owner filtering consistently to timing, counter, and value observations, including
+  paired enter/exit handling and per-session timing-stack isolation.
+- Added scope and consumer attribution to JSON, CSV, and human-readable reports, and updated the
+  public integration guide, schema notes, README, and example.

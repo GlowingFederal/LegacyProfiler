@@ -2,6 +2,7 @@ package com.glowingfederal.legacyprofiler.core;
 
 
 import com.glowingfederal.legacyprofiler.api.ProfileSessionInfo;
+import com.glowingfederal.legacyprofiler.api.ProfileScope;
 
 import java.io.File;
 import java.util.Date;
@@ -17,6 +18,8 @@ public final class ProfileSession {
     private final long startedNanos = System.nanoTime();
     private final File outputDirectory;
     private final ProfileSessionInfo sessionInfo;
+    private final ProfileScope scope;
+    private final String consumerId;
     private final ProfileMetadata metadata = new ProfileMetadata();
     private final Map<Stage, StageStatistics> statistics = new LinkedHashMap<Stage, StageStatistics>();
     private final TimelineRecorder timeline = new TimelineRecorder();
@@ -30,11 +33,16 @@ public final class ProfileSession {
     private final AtomicLong openTimings = new AtomicLong();
     private static final int MAX_TRACES = 4096;
 
-    ProfileSession(File outputDirectory, ProfileSessionInfo sessionInfo) {
+    ProfileSession(File outputDirectory, ProfileSessionInfo sessionInfo, ProfileScope scope, String consumerId) {
         this.outputDirectory = outputDirectory;
         if (sessionInfo == null) throw new IllegalArgumentException("sessionInfo must not be null");
         this.sessionInfo = sessionInfo;
-        for (Stage stage : StageRegistry.stages()) statistics.put(stage, new StageStatistics());
+        if (scope == null) throw new IllegalArgumentException("scope must not be null");
+        if (scope == ProfileScope.CONSUMER) StageRegistry.validateConsumerId(consumerId);
+        if (scope == ProfileScope.GLOBAL && consumerId != null) throw new IllegalArgumentException("global scope must not have a consumer ID");
+        this.scope = scope;
+        this.consumerId = consumerId;
+        for (Stage stage : StageRegistry.stages()) if (accepts(stage)) statistics.put(stage, new StageStatistics());
     }
 
     void record(TimingStack.Completed completed) { statistics.get(completed.stage).record(completed.inclusiveNanos, completed.exclusiveNanos); }
@@ -62,6 +70,9 @@ public final class ProfileSession {
     public Date getEndedAt() { return new Date(startedAt.getTime() + elapsedNanos(System.nanoTime()) / 1_000_000L); }
     public File getOutputDirectory() { return outputDirectory; }
     public ProfileSessionInfo getSessionInfo() { return sessionInfo; }
+    public ProfileScope getScope() { return scope; }
+    public String getConsumerId() { return consumerId; }
+    public boolean accepts(Stage stage) { return stage != null && (scope == ProfileScope.GLOBAL || consumerId.equals(stage.consumerId())); }
     public ProfileMetadata getMetadata() { return metadata; }
     public long getChunksGenerated() { return chunks.get(); }
     public TimelineRecorder getTimeline() { return timeline; }

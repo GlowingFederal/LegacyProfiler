@@ -2,7 +2,7 @@ package com.glowingfederal.legacyprofiler.core;
 
 /**
  * Immutable, data-driven description of a profiling stage.
- * Names must also satisfy {@link Stage}'s uppercase identifier contract. A parent is either
+ * Names must also satisfy {@link Stage}'s lowercase identifier contract. A parent is either
  * {@code null} or another registered stage name. Consumers should use a stable, namespaced name
  * and a non-null source (normally their mod ID); a null source falls back to {@code Adapter}.
  */
